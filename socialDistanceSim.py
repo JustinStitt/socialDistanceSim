@@ -44,14 +44,14 @@ class Dot:
         self.v = 2#velocity (hypotenuse)
         self.speed = [0,0]#(x,y) pixel travel speed per frame
         self.angle = math.pi/3#in radians
-
+        self.fix = True
     def update(self):
         if(self.can_move):
-            #self.speed[0] = self.v * math.cos(self.angle)
-            #self.speed[1] = self.v * math.sin(self.angle)
+            self.speed[0] = self.v * math.cos(self.angle)
+            self.speed[1] = self.v * math.sin(self.angle)
             self.pos[0] += int(self.speed[0])#math.ceil rounds up our float to the nearest pixel
             self.pos[1] -= int(self.speed[1])#math.ceil rounds up our float to the nearest pixel
-        self.check_collision()
+            self.check_collision()
         self.render()
     def render(self):
         #two steps to drawing an Antialiased shape. Outline, then filled
@@ -70,11 +70,13 @@ class Dot:
         for dot in dots:
             dist = distance(*self.pos,*dot.pos)
             if ( dist <= (2 * dot_size) and dot != self):
-                ##TO DO
-                self.angle = 2 * math.pi - self.angle#HOW DO I FIND THE RESULTING ANGLE AFTER COLLISION :( (perfect elastic collision)
-                dot.color = (255,0,0)
-                dot.type = 1
+                if(self.fix):
+                    self.angle = 2 * math.pi - self.angle#HOW DO I FIND THE RESULTING ANGLE AFTER COLLISION :( (perfect elastic collision)
+                    dot.color = (255,0,0)
+                    dot.type = 1
+                    self.fix = False
                 return
+        self.fix = True
 
 def randomly_populate():
     """
