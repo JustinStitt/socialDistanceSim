@@ -9,7 +9,7 @@ infected is lower. This ensures that hospitals will not be over-capacity and tha
 
 ![](visuals/flatterCurveGIF.gif)
 
-My take on the "Flatten the Curve" simulation tred is a closed-system physics-based simulation.
+My take on the "Flatten the Curve" simulation trend is a closed-system physics-based simulation.
 People are represented as circles and bounce around the screen.
 The intial amount of infected people is quite small. However, if an infected person has a collision with
 a healthy person then the infection is spread.
