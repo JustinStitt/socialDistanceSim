@@ -1,5 +1,5 @@
 # socialDistanceSim
-A simulation of how Social Distancing "Flattens the Curve"
+A simulation of how Social Distancing "Flattens the Curve"  
 
 
 **The Basics**    
