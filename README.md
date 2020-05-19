@@ -2,7 +2,7 @@
 A simulation of how Social Distancing "Flattens the Curve"
 
 
-**The Basics**  
+**The Basics**    
 
 Flattening the curve does not mean that you will have less total infected. However, the RATE at which the population gets
 infected is lower. This ensures that hospitals will not be over-capacity and that there is time for a vaccine to be developed.
