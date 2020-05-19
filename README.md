@@ -38,4 +38,6 @@ An inverse relationship between entropy in the system and infection rate is the 
 
 ![](visuals/socialDistancePIC1.png)
 
-This has been a real blast to develop. Remember to wash your hands and stay at home!
+This has been a real blast to develop. Remember to wash your hands and stay at home! 
+
+- Justin
