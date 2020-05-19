@@ -17,7 +17,7 @@ a healthy person then the infection is spread.
 My simulation has a "social distancing ratio" which is the percentage of people who are staying at home, they are represented
 as stationary circles with no velocity.
 
-**LOW Social Distancing Ratio** (lots of people moving around acting normally)
+**LOW Social Distancing Ratio** (lots of people disregarding social distancing
 
 ![](visuals/socialDistanceGIF1.gif)
 
