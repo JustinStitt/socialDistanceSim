@@ -1,135 +1,300 @@
 import pygame
 import sys
 import random
+import time
 import math
-from pygame import gfxdraw
-
+import numpy as np
+import multiprocessing as mp
+import matplotlib.pyplot as plt
+from scipy.interpolate import interp1d
 pygame.init()
-#user vars
-POPULATION = 100
-dot_size = 15
-SEED = None # used to seed our pseudo-random number generator (None = systime seed)
-#end user vars
 
-#CONSTS
-WIDTH = 800
-HEIGHT = 800
-speed = 2.0
-fps = 60 * speed
-#end CONSTS
-background_color = (42,42,44)
+enable_plot = False
+social_distancing_ratio = .7
+#consts
+WIDTH,HEIGHT = (800,800)
+#end consts
 
-# set up
+HEALTHY_COLOR = (0,251,60)
+INFECTED_COLOR = (225,26,13)
+RECOVERED_COLOR = (13,32,244)
+DECEASED_COLOR = (43,13,23)
+
+total_healthy = 0
+total_infected = 0
+
+#setup
 screen = pygame.display.set_mode((WIDTH,HEIGHT))
-pygame.display.set_caption('Social Distancing Simulation -- Justin Stitt')
+pygame.display.set_caption("Social Distancing Simulation -- Justin Stitt")
+background_color = (42,42,44)
 clock = pygame.time.Clock()
-random.seed(SEED)
-#end set up
+font = pygame.font.Font('freesansbold.ttf', 32)
+sfont = pygame.font.Font('freesansbold.ttf', 16)
 
-dots = []#collection of 'Dot' objs
+text = font.render('time: (0)',True,(255,255,255))
+sd_text = sfont.render('Social Distancing Ratio: {}'.format(social_distancing_ratio),True,(255,255,255))
+fps = 60
+frame = 1
+#end setup
+balls = []
+ball_size = 5
+ball_speed = 2
+ball_max_speed = 5
 
+selected_ball = None
 
-class Dot:
-    """
-    A 'Dot' functions as a node to simulate collision and change color based on its
-    current infection status (type).
-    """
-    def __init__(self,x,y,type = 0,can_move = False):
-        self.pos = [x,y]#(x,y) in 2d space
-        self.size = dot_size#radius of dot to render
-        self.color = (47, 245, 142)#default color (healthy, type = 0)
-        self.type = type#default is healthy. (0 = healthy, 1 = infected)
-        #movement
-        self.can_move = can_move
-        self.v = 2#velocity (hypotenuse)
-        self.speed = [0,0]#(x,y) pixel travel speed per frame
-        self.angle = math.pi/3#in radians
-        self.fix = True
+class Ball:
+    def __init__(self):
+        self.pos = [0,0]
+        self.v = [0,0]
+        self.r = ball_size
+        self.mass = 1
+        self.i = -1
+        self.state = 0 #0 = healthy, 1 = infected, 2 = recovered, 3 = deceased
+        self.moving = True
+        #display
+        self.color = HEALTHY_COLOR#default color
     def update(self):
-        if(self.can_move):
-            self.speed[0] = self.v * math.cos(self.angle)
-            self.speed[1] = self.v * math.sin(self.angle)
-            self.pos[0] += int(self.speed[0])#math.ceil rounds up our float to the nearest pixel
-            self.pos[1] -= int(self.speed[1])#math.ceil rounds up our float to the nearest pixel
-            self.check_collision()
+        self.check_border()
+        if(self.moving == True):
+            self.calc_movement()
+        self.update_color()
         self.render()
     def render(self):
-        #two steps to drawing an Antialiased shape. Outline, then filled
-        pygame.gfxdraw.aacircle(screen,*self.pos,self.size,self.color)
-        pygame.gfxdraw.filled_circle(screen,*self.pos,self.size,self.color)
-
-    def check_collision(self):
-        if(self.can_move == False):
+        if(math.isnan(self.pos[0]) or math.isnan(self.pos[1])):
             return
-        if(self.pos[0] + self.size >= WIDTH or self.pos[0] - self.size <= 0):
-            self.angle = math.pi - self.angle
-            return
-        elif(self.pos[1] + self.size >= HEIGHT or self.pos[1] - self.size <= 0):
-            self.angle = 2 * math.pi - self.angle
-            return
-        for dot in dots:
-            dist = distance(*self.pos,*dot.pos)
-            if ( dist <= (2 * dot_size) and dot != self):
-                if(self.fix):
-                    self.angle = 2 * math.pi - self.angle#HOW DO I FIND THE RESULTING ANGLE AFTER COLLISION :( (perfect elastic collision)
-                    dot.color = (255,0,0)
-                    dot.type = 1
-                    self.fix = False
-                return
-        self.fix = True
+        pygame.draw.circle(screen,self.color,(int(self.pos[0]),int(self.pos[1])),self.r)
+    def check_border(self):
+        if(self.pos[0] - self.r <= 0):
+            self.pos[0] = 0 + self.r + 2
+            self.v[0] *= -1
+        elif(self.pos[0] + self.r >= WIDTH):
+            self.pos[0] = WIDTH - self.r - 2
+            self.v[0] *= -1
+        if(self.pos[1] - self.r <= 0):
+            self.pos[1] = 0 + self.r + 2
+            self.v[1] *= -1
+        elif(self.pos[1] + self.r >= HEIGHT):
+            self.pos[1] = HEIGHT - self.r - 2
+            self.v[1] *= -1
+    def calc_movement(self):
+        #update ball physics
+        if(self.v[0] > ball_max_speed):
+            self.v[0] = ball_max_speed
+        elif(self.v[0] < -ball_max_speed):
+            self.v[0] = -ball_max_speed
+        if(self.v[1] > ball_max_speed):
+            self.v[1] = ball_max_speed
+        elif(self.v[1] < -ball_max_speed):
+            self.v[1] = -ball_max_speed
+        self.pos[0] += self.v[0]
+        self.pos[1] += self.v[1]
+    def update_color(self):
+        if self.state == 0:
+            self.color = HEALTHY_COLOR
+        elif self.state == 1:
+            self.color = INFECTED_COLOR
+        elif self.state == 2:
+            self.color = RECOVERED_COLOR
+        elif self.state == 3:
+            self.color = DECEASED_COLOR
 
-def randomly_populate():
-    """
-    Populates our screen space with healthy dots
-    """
-    rx = 0
-    ry = 0
-    for x in range(POPULATION):
-        dots.append(gen_random())
 
-def gen_random():
-    rx = random.randint(0 + dot_size, WIDTH - dot_size)#bounds for random x
-    ry = random.randint(0 + dot_size, HEIGHT - dot_size)#bounds for random y
-    to_add = Dot(rx,ry)
-    if(check_overlap(rx,ry) == False):
-        return to_add
-    else:
-        return gen_random()#recursively generate another random dot if this dot overlaps with any other dots
 
-def check_overlap(rx,ry):#returns True if we are NOT overlapping any other dot
-    for dot in dots:
-        if(  distance(rx,ry,*dot.pos) < dot_size * 2 ):#we are overlapping
-            return True
-    return False
+collidingPairs = []
 
-def distance(x1,y1,x2,y2):
-    dist = math.sqrt( (x2-x1)**2 + (y2-y1)**2   )
-    return dist
+def check_static():
+    for ball in balls:
+        for target in balls:
+            if(ball.i != target.i):
+                if(overlap(*ball.pos,ball.r,*target.pos,target.r)):
+                    #collision has occured
+                    collidingPairs.append([ball,target])
 
-def exit():
-    pygame.quit()
-    sys.exit()
+                    #INFECTION
+                    if(ball.state == 1 and target.state != 1):#infected
+                        target.state = 1#now target is infected
+                    if(target.state == 1 and ball.state != 1):
+                        ball.state = 1
+                    #END INFECTION
 
+                    #distance between ball centers
+                    distance = math.sqrt((ball.pos[0] - target.pos[0])**2 + (ball.pos[1] - target.pos[1])**2)
+                    #calculate displacement required
+                    _overlap = .5 * (distance - ball.r - target.r)
+                    #displace current ball away from collision
+                    if(distance == 0):
+                        distance = 0.01
+                    ball.pos[0] -= _overlap * (ball.pos[0] - target.pos[0]) / distance#normalize
+                    ball.pos[1] -= _overlap * (ball.pos[1] - target.pos[1]) / distance#normalize
+                    #displace target ball away from collision
+                    target.pos[0] += _overlap * (ball.pos[0] - target.pos[0]) / distance#normalize
+                    target.pos[1] += _overlap * (ball.pos[1] - target.pos[1]) / distance#normalize
+
+def check_dynamic():
+    for pair in collidingPairs:
+        b1 = pair[0]
+        b2 = pair[1]
+        #distance between balls
+        distance = math.sqrt((b1.pos[0] - b2.pos[0])**2 + (b1.pos[1] - b2.pos[1])**2);
+        #normal
+        if(distance == 0):
+            distance = 0.01
+        nx = (b2.pos[0] - b1.pos[0]) / distance
+        ny = (b2.pos[1] - b1.pos[1]) / distance
+        #tangent
+        tx = -ny
+        ty = nx
+        #dot product tangent
+        dpTan1 = b1.v[0] * tx * b1.v[1] * ty
+        dpTan2 = b2.v[0] * tx + b2.v[1] * ty
+        #dot product normal
+        dpNorm1 = b1.v[0] * nx + b1.v[1] * ny
+        dpNorm2 = b2.v[0] * nx + b2.v[1] * ny
+        #conservation of momentum in 1D
+        m1 = (dpNorm1 * (b1.mass - b2.mass) + 2.0 * b2.mass * dpNorm2) / b1.mass #+ b2.mass)
+        m2 = (dpNorm2 * (b2.mass - b1.mass) + 2.0 * b1.mass * dpNorm1) / b1.mass #+ b2.mass)
+
+        #update ball velocities
+        b1.v[0] = tx * dpTan1 + nx * m1
+        b1.v[1] = ty * dpTan1 + ny * m1
+        b2.v[0] = tx * dpTan2 + nx * m2
+        b2.v[1] = ty * dpTan2 + ny * m2
+    collidingPairs.clear()
+
+
+
+def add_ball(x,y,r = 50,v = [1,1]):
+    _ball = Ball()
+    _ball.pos = [x,y]
+    _ball.radius = r
+    _ball.mass = r * 5
+    _ball.v = v
+    _ball.i = len(balls)
+    balls.append(_ball)
+#aux funcs
+def overlap(x1,y1,r1,x2,y2,r2):
+    return (((x1-x2)**2 + (y1-y2)**2) <= (r1+r2)**2)
+
+def isPointInCircle(x1,y1,r1,px,py):
+    return abs((x1 - px)**2 + (y1 - py)**2) < (r1 * r1);
+
+def rand_balls(num):
+    for x in range(num):
+        x_v = ball_speed if random.random() < 0.5 else -ball_speed
+        y_v = ball_speed if random.random() < 0.5 else -ball_speed
+        add_ball(random.randint(ball_size*2,WIDTH - ball_size*2),random.randint(ball_size*2,HEIGHT-ball_size*2),ball_size,[x_v,y_v])
+
+def set_infected(percentage):
+    for ball in balls:
+        if(random.random() < percentage):
+            ball.state = 1#set infected
+
+def social_distance(percentage):
+    #what percent of the population choses to social distance?
+    for ball in balls:
+        if(random.random() < percentage):
+            ball.moving = False
+            ball.v = [0,0]
+def get_healthy():
+    _count = 0
+    for ball in balls:
+        if ball.state == 0:
+            _count += 1
+    return _count
+def get_infected():
+    _count = 0
+    for ball in balls:
+        if ball.state == 1:
+            _count += 1
+    return _count
+def get_recovered():
+    _count = 0
+    for ball in balls:
+        if ball.state == 2:
+            _count += 1
+    return _count
+def get_deceased():
+    _count = 0
+    for ball in balls:
+        if ball.state == 3:
+            _count += 1
+    return _count
+#end aux
+
+#add_ball(200,250,10,[5,-2])
+#add_ball(100,125,10,[0,0])
+rand_balls(150)
+set_infected(.1)
+social_distance(social_distancing_ratio)
+
+#plot setup
+if(enable_plot):
+    old_infected = get_infected()
+    #x = np.array([frame])
+    #y = np.array([old_infected])
+    x = np.array([])
+    y1 = np.array([])#infected
+    y2 = np.array([])#healthy
+    plt.rcParams['animation.html'] = 'jshtml'
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    labels = ["Healthy","Infected"]
+    pallette = ["#39cc40","#e32749"]
+
+    fig.show()
+#end plot setup
+
+def plot():
+    global x,y1,y2, old_infected
+    current_infected = get_infected()
+    current_healthy = get_healthy()
+    new_infected = current_infected - old_infected
+    if(current_infected >= len(balls)):
+        return
+    x = np.append(x,frame)
+    y1 = np.append(y1,current_infected)
+    y2 = np.append(y2,current_healthy)
+    old_infected = current_infected
+
+    ax.set_xlabel('days')
+    ax.set_ylabel('# of people')
+    ax.stackplot(x,y2,y1, labels=labels, colors = pallette, alpha = 0.4)
+    ax.legend(loc='upper left')
+    fig.canvas.draw()
+    ax.cla()
 
 def update():
+    global selected_ball
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            exit()
-
-    #object update calls
-    for dot in dots:
-        dot.update()
-
+            pygame.quit()
+            sys.exit()
+    #update timer for text
+    _time = frame
+    text = font.render('days: {}'.format(_time),True,(255,255,255))
+    screen.blit(text,(15,HEIGHT-45))
+    #obj updates
+    for ball in balls:
+        ball.update()
+    check_static()
+    check_dynamic()
+    total_healthy = get_healthy()
+    total_infected = get_infected()
+    h_text = font.render('Healthy: {}'.format(total_healthy),True,HEALTHY_COLOR)
+    i_text = font.render('Infected: {}'.format(total_infected),True,INFECTED_COLOR)
+    screen.blit(h_text,(555,HEIGHT-90))
+    screen.blit(i_text,(555,HEIGHT-40))
 def render():
     pass
-
-randomly_populate()
-dots[5].can_move = True
-dots[5].speed = [1,2]
 
 while True:
     screen.fill(background_color)
     update()
     render()
+    screen.blit(sd_text,(245,HEIGHT-20))
     pygame.display.flip()
+    frame+=1
+    if(frame % 3 == 0 and enable_plot):
+        plot()
     clock.tick(fps)
