@@ -14,7 +14,7 @@ People are represented as circles and bounce around the screen.
 The intial amount of infected people is quite small. However, if an infected person has a collision with
 a healthy person then the infection is spread.
 
-My simulation has a "social distancing ratio" this is the percentage of people who are staying at home, they are represent
+My simulation has a "social distancing ratio" which is the percentage of people who are staying at home, they are represented
 as stationary circles with no velocity.
 
 **LOW Social Distancing Ratio** (lots of people moving around acting normally)
